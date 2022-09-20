@@ -1,0 +1,225 @@
+---
+title: "Clinical Data Tutorial"
+author: Nicole Black
+date: 07/17/22
+---
+
+###### (1) Set Up
+
+Set your working environment to analysis_data:
+
+```{r setup}
+    knitr::opts_knit$set(root.dir = normalizePath("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data"))
+```
+
+Load in the BiocManager and TCGAbiolinks packages:
+
+```{r}
+# load in packages
+library(TCGAbiolinks)
+library(BiocManager)
+```
+
+Re-query and prepare your data. NOTE: You don't have to download it again!!
+
+```{r}
+clinical_query <- GDCquery(project="TCGA-BRCA",data.category="Clinical",file.type="xml")
+
+clinical <- GDCprepare_clinic(clinical_query,clinical.info="patient")
+```
+
+###### (2) Exploring Age (Boolean Indexing!)
+
+There are many factors to explore in the clinical data, but for now, we will be focusing on age. Early onset breast cancer (typically defined as < 45 or < 50 years old) is often associated with a more aggressive tumor type as well as a poorer prognosis.
+
+Look up "early onset breast cancer" in Google Scholar and pick a paper to skim.
+    1. Link to paper: https://www.mdpi.com/2072-6694/12/8/2089/htm 
+    2. What is one thing you learned from this paper: 
+    The researchers observed early onset breast cancer (EOBC) in 90 Taiwanese women. They noted that TP53 had the highest mutation frequency in EOBC while PIK3CA had the opposite. The taiwanese population had hte highest TP53 prevalence. Family history is also associated with higher risk of breast or ovarian cancer. BRCA1 and BRCA2 are inherited factors observed more often among breast cancer patients but are not indicative that it will develop. A large number of mutations in structural protein-coding genes was observed in the studied group with MUC16 and KRT18 which encode for structural proteins having germline mutations,MUC6 and MUC17 which encode for mucal proteins being highly mutated, and MUC17, FLG and NEBL levels elevated in EOBC patients. With these results they hypothesize the muations in structural proteins "may result in a leaky epidermis and, thus, weaken the physical barrier, which would become more permeable to environmental toxins such as environmental carcinogens or hormones. The enhanced accumulation of toxins within breast cells will increase somatic mutations and initiate tumorigenesis at an early age."
+    
+Let's start with an overview of the age data. Run the following functions on the age_at_initial_pathologic_diagnosis column. Record the output below.
+    1. min() = 26
+    2. max() = 90
+    3. mean() = 58.77087
+    4. median() = 59
+    5. summary() = 
+    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  26.00   49.00   59.00   58.77   68.00   90.00 
+
+```{r}
+# write code here
+min(clinical$age_at_initial_pathologic_diagnosis)
+max(clinical$age_at_initial_pathologic_diagnosis)
+mean(clinical$age_at_initial_pathologic_diagnosis)
+median(clinical$age_at_initial_pathologic_diagnosis)
+summary(clinical$age_at_initial_pathologic_diagnosis)
+```
+
+For the purposes of our analysis, we will define "young" as < 50 y/o, and "old" as >= 50 y/o.
+
+Create a column in "clinical" called "age_category" with the values "young" and "old" based on our age definition above. HINT: Use an ifelse statement to do this. If you need help recalling how to create a new column, see the "Editing data frames" section of Intro_to_R.Rmd
+
+```{r}
+# write code here
+colnames(clinical)
+
+#method 1
+clinical[,22]
+clinical$age_category <- ifelse(clinical$age_at_initial_pathologic_diagnosis >= 50,"old","young")
+clinical$age_category
+
+#method 2
+clinical$age_at_initial_pathologic_diagnosis
+if (list_am = 0) {
+  print("automatic")
+} else if (list_am=1) {
+ print("manual")
+} else {
+ print("else")
+}
+```
+
+Now, let's say we want to create a new clinical data frame with only young patients. How can we do that?
+
+Remember Boolean masking from R_Tutorial.Rmd? In that notebook, we created a boolean mask, or a vector of boolean values (TRUE/FALSE) than could be applied to the df[rows, columns] syntax to select for only TRUE rows/columns. In that case, we created our mask using is.na(), a vectorized function that automatically returns a boolean vector, but we can also create the boolean vector ourselves!
+
+Create a boolean vector using an ifelse() statement where young patients (< 50) are TRUE, and old patients (>= 50) are FALSE.
+
+```{r}
+# write code here
+age_mask <- ifelse(clinical$age_at_initial_pathologic_diagnosis < 50,TRUE,FALSE) 
+age_mask
+```
+
+Call the sum function on age_mask. Remember that TRUEs are treated as 1, and FALSEs are treated as 0. Knowing this, what will your sum represent?
+    1. Sum = 309
+
+```{r}
+# write code here
+sum(age_mask)
+```
+
+Now let's take the age_mask and apply it to create a new subsetted data frame. You can do this by placing the mask on either the rows or columns side of the df[rows, columns] format.
+    ie: clinical[age_mask , ] OR clinical[ , age_mask]
+    
+Which side do we place it on? Let's think. If we place the mask in the rows side, R will travel down each row of the clinical data frame and check the corresponding TRUE/FALSE value, keeping or ignoring rows accordingly. If we place the mask in the columns side, R will keep or ignore columns accordingly. HINT: draw out the data frame if this is confusing!
+
+We want to select for *patients* who are young. Will keeping/ignoring rows or columns allow us to create our young_clinical df? HINT: what data is stored in rows and what data is stored in columns?
+  A: We want it on the rows side so it goes down the column. We want to keep the TRUE values because those represent the young patients. 
+
+```{r}
+young_clinical <- clinical[age_mask,]
+```
+
+View the young_clinical data frame by double-clicking on it in the Environment panel to ensure that you created it as intended.
+
+Now, create an old_clinical data frame using the SAME mask as before. What do you have to change? Remember that TRUE rows/columns are kept, and FALSE rows/columns are ignored.
+
+```{r}
+old_clinical <- clinical[!age_mask,]
+```
+
+The number of rows in the young_clinical data frame added to the number of rows in the old_clinical data frame should sum up to the number of rows in the clinical data frame.
+
+Let's check to make sure that nothing went wrong in our process:
+
+```{r}
+nrow(clinical) == nrow(young_clinical) + nrow(old_clinical) # write code here
+```
+
+The statement you just wrote (x == y) is called an assert statement, and it can be used as a sanity check to make sure that everything is working as it should. You should use assert statements throughout your coding process as checkpoints to avoid going down too far down the wrong path. Write assert statements in the Console since you don't actually need to save any outputs.
+
+###### (3) Kaplan-Meier Plots
+
+Now, we're going to look at Kaplan-Meier plots separated by age category. A Kaplan-Meier plot (KM plot) is a survival curve that shows the probability of survival based on a certain factor (ex: age, treatment, sex, etc.) at a certain point in time. This plot allows us to determine whether a given factor affects survival probabilities, and if so, how. For more info on KM plots, read the following two articles:
+    1. https://towardsdatascience.com/kaplan-meier-curves-c5768e349479
+    2. https://www.mygreatlearning.com/blog/kaplan-meier-curve-explained/#:~:text=The%20Kaplan%20Meier%20Curve%20is%20the%20visual%20representation%20of%20this,sample%20size%20is%20large%20enough.
+    
+Before we get started, install and load the "survival" and "survminer" packages. Also install/load ggplot2 if it is not already in your RStudio.
+
+```{r}
+# install and load packages 
+library(ggplot2)
+
+if (!require(survival)){ 
+install.packages("survival")
+}
+library(survival)
+
+if (!require(survminer)){ 
+install.packages("survminer")
+}
+library(survminer)
+```
+
+To create a KM plot, we need three sets of data: survival_time, death_event, and a grouping variable (in this case, age_category).
+
+Let's create a column in clinical called survival_time. For some patients, we can find survival time using their days_to_death info. But for others, namely those who never had a registered death event (ie days_to_death = NA), our best estimate becomes days_to_last_follow_up, since that is the longest definitive time we can say they survived. Using the days_to_death and days_to_last_follow_up columns, create a survival_time column in the clinical data frame.
+
+```{r}
+# write code here 
+# HINT: use ifelse() and is.na()
+#create a column
+#set up conditions for column: if 
+is.na(clinical$days_to_death)
+clinical$survival_time <- ifelse(is.na(clinical$days_to_death), clinical$days_to_last_followup, clinical$days_to_death)
+```
+
+Next, create the death_event column. This column will store a boolean variable that is TRUE if there was a death event, or FALSE if there was no recorded event. You can use the vital_status column and an ifelse() statement to make this column.
+
+```{r}
+# write code here
+clinical$death_event <- ifelse(!is.na(clinical$vital_status),TRUE,FALSE)
+```
+
+Now we can perform our analysis! Read the Help info for each function, then fill in the blanks with the columns you created (age_category, survival_time, death_event).
+
+```{r}
+# Initialize a 'survival' object, which contains the data we need.
+?Surv
+surv_object_age <- Surv(time = clinical$survival_time,
+                    event = clinical$death_event)
+
+# Create a fit object
+# When writing formulas (x ~ y), x is what's being plotted and y is what is grouping x into categories
+?surv_fit
+age_fit <- surv_fit( surv_object_age ~ clinical$age_category,
+                     data = clinical )
+
+# the ggtheme and legend arguments are for formatting. 
+# Feel free to play around with the margins and legend placement
+?ggsurvplot
+survplot_age = ggsurvplot(age_fit, 
+           pval=TRUE, 
+           ggtheme = theme(plot.margin = unit(c(1,1,1,1), "cm")), 
+           legend = "right")
+
+# when you create plots on your own, be sure to name them descriptively
+KM_plot_age = survplot_age$plot + 
+  theme_bw() +  # changes the appearance to be a bit prettier
+  theme(axis.title = element_text(size=20), # increase font sizes
+        axis.text = element_text(size=16),
+        legend.title = element_text(size=14),
+        legend.text = element_text(size=12))
+
+KM_plot_age
+```
+
+Take a moment to look at your plot and try to understand what it is saying. Write some observations/key takeaways below:
+  As the survival time increases, the probability of survival decreases. The young age group's decline is slightly slower than the old age group. It looks like an exponential decrease.
+
+###### (4) Saving files
+
+In this tutorial you explored the clinical data frame, you practiced boolean indexing, and you created a Kaplan-Meier plot.
+
+Before closing out, save your edited clinical data frame to your local machine so you don't need to requery it each time you use it.
+
+Remember, you can use write.csv() to save a data frame to a .csv file, and you can use read.csv() to read a .csv file back into a data frame.
+
+```{r}
+# change the file path! make sure it's in your week4 folder
+# we set row.names to false since the first row doesn't contain row name info
+write.csv(clinical, "/Users/kathykliu/Desktop/qbio_490_kailin/week4_clinical_kailin/brca_clinical_data.csv", row.names = FALSE)
+```
+
+

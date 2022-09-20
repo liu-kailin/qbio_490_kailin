@@ -1,0 +1,137 @@
+---
+title: "Introduction to Clinical Data"
+author: Nicole Black
+date: 07/17/22
+---
+
+Welcome to your first experience using TCGA data in R! The first data type we will begin with is clinical data (ex: sex, age at initial diagnosis, tumor subtype, etc.)
+
+###### (1) Set up your working environment
+
+Before running this code, make sure you are in the correct working directory (your personal qbio_490_name folder) with getwd() and setwd(). Otherwise you’ll have trouble tracking the data down!
+
+As good general practice to keep things organized, create an "analysis_data" folder in the root of your GitHub repository (your qbio_490_name folder), then set that folder as your working directory ("/PATH/TO/qbio_490_name/analysis_data") whenever you are working with TCGA files. You can create the folder through your command line now.
+
+Once the folder is created, set your working directory below:
+
+```{r setup}
+    knitr::opts_knit$set(root.dir = normalizePath("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data")) 
+```
+
+Before you move on, go to your GitHub web browser, open your .gitignore, and make sure the following is added in. 
+
+      "### TCGA Data
+      GDCdata
+      MANIFEST*
+      htseq_h5*
+      analysis_data"
+
+The loaded files from TCGA are quite large, so we don't want to push them to GitHub, it's also typically best to avoid putting raw data on GitHub.
+
+###### (2) Pulling data from TCGA using TCGAbiolinks
+
+You should have already installed both the BiocManager and TCGAbiolinks packages into R. Go ahead and load those packages in now:
+
+```{r Exercise 2.1}
+# load packages
+library(TCGAbiolinks)
+library(BiocManager)
+```
+
+To get the clinical data files onto your computer, use GDCquery(). 
+
+Hint: you'll need to fill in the "project", "data.category", and "file.type" (=xml) arguments. Look up GDCquery() either in the help panel or online to determine which "project" and "data.category" to use. At the bottom of the help panel there are examples that might be useful as well.
+
+```{r Exercise 2.2}
+clinical_query <- GDCquery(project="TCGA-BRCA",data.category="Clinical",file.type="xml")
+```
+
+After you have queried the data, download it.
+
+```{r Exercise 2.2}
+GDCdownload(clinical_query) # ONLY RUN THIS ONCE! it is very slow
+```
+
+Lastly, to get the data into an R data frame, use GDCprepare_clinic().
+
+```{r Exercise 2.3}
+clinical <- GDCprepare_clinic(clinical_query,clinical.info="patient")
+```
+
+###### (3) Exploring the Data
+
+View the structure of the data as well as the first few lines. What two commands should you use?
+
+Answer the following questions based on the output of those commands: 
+1. How many rows are there? How many columns?
+2. What is the data type of $gender?
+3. What is the age in years of the 5th patient (barcode: TCGA-4H-AAAK)?
+4. How old was the 1st patient at their last follow up (barcode: TCGA-3C-AAAU)? HINT: you need to look at data from two columns to answer this
+
+```{r Exercise 3.1}
+# write code here
+str(clinical)
+typeof(clinical$gender)
+head(clinical)
+tail(clinical)
+
+# 1. 1174 rows, 114 columns
+# 2. integer
+# 3. 50 
+# 4. 45
+```
+
+View the column and row names. What two commands should you use?
+
+```{r Exercise 3.2}
+# write code here
+colnames(clinical)
+rownames(clinical)
+```
+
+View the vital status column. What two notations can be used to view columns? 
+
+```{r Exercise 3.3}
+# write code here
+colnames(clinical)
+clinical$vital_status
+# df[,column #]
+clinical[,7]
+```
+
+###### (4) Plotting
+
+Choose two variables and make a scatter plot (recall the plot() function).
+
+THINK: what types of variables can you use in a scatter plot (continuous, discrete, categorical). Look these up if you need help!
+
+For an extra challenge, add a plot title, axes titles, and colors to your plot.
+
+```{r Exercise 4.1}
+# create plot here
+early_vs_norm <- ifelse(clinical$days_to_birth>365*40,"Red",
+       ifelse(clinical$days_to_birth>365*20,"Blue","Purple"))
+plot(x = clinical$days_to_birth,
+     y = clinical$days_to_initial_pathologic_diagnosis,
+     main = "Days to Birth vs Days to Initial Pathological Diagnosis",
+     xlab = "Days to Birth",
+     ylab = "Days to Initial Pathological Diagnosis",
+     col = early_vs_norm)
+```
+
+Choose two new variables and make a box plot (recall the boxplot() function).
+
+THINK: what types of variables can you use in a box plot?
+
+For an extra challenge, add a plot title, axes titles, and confidence intervals to your plot.
+
+```{r Exercise 4.2}
+# create plot here
+boxplot(formula=clinical$age_at_initial_pathologic_diagnosis ~ clinical$race_list,
+        data=clinical,
+        xlab ="Race",
+        ylab = "Age at Diagonsis",
+        main= "Age at Diagnosis vs Patient Race",
+        cex.axis=0.5)
+```
+
