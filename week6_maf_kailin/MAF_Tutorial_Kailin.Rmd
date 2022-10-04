@@ -1,0 +1,225 @@
+---
+title: "MAF Tutorial"
+author: Nicole Black
+date: 08/03/22
+---
+
+*/ IMPORTANT: You must query, download, and prepare the RNAseq data before Monday's meeting (see directions in part 8 of this notebook). Allot 15-20 minutes for the download depending on your laptop's processing power. If you encounter any issues, you must slack Nicole/TAs before Sunday night so we can troubleshoot prior to class time. /*
+
+###### (1) Set Up
+
+Set your working environment to analysis_data:
+
+```{r setup}
+    knitr::opts_knit$set(root.dir = normalizePath("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data")) 
+```
+
+Install and load the ggplot2 package:
+
+```{r}
+if (!require(ggplot2)){ 
+install.packages("ggplot2")
+}
+
+library(ggplot2)
+```
+
+Load in the maftools and TCGAbiolinks package:
+
+```{r}
+# write code here
+library(maftools)
+library(TCGAbiolinks)
+```
+
+Load in your saved MAF data by reading in your clinical data, re-preparing maf_query, and then calling read.maf(). See Intro_to_MAF.Rmd if you need help.
+
+```{r}
+# write code here
+clinical <- read.csv("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data/brca_clinical_data.csv")
+
+maf <- GDCprepare(maf_query) # as long as it runs, ignore any errors
+
+maf_object <- read.maf(maf = maf, 
+                       clinicalData = clinical,
+                       isTCGA = TRUE)
+```
+
+###### (2) Oncoplots
+
+We are going to start off by making our first MAF figure using the oncoplot() function. The each column on an oncoplot represents an individual patient, and the rows represent the genes of interest. The different colors represent the different types of mutations where grey represents no mutation in that gene for that patient.
+
+Generate an oncoplot by filling in the maf argument below. Fill in the top argument with various integer arguments (e.g. 5, 10, 20, etc.) to see the genes that are mutated in the most patients. Save your plot to your week6_maf folder.
+
+```{r}
+oncoplot(maf = maf_object,
+         top = 10) 
+
+ggsave("/Users/kathykliu/Desktop/qbio_490_kailin/week6_maf_kailin/first_maf.png")
+```
+
+Pick one of the top 10 mutated genes and Google it! What is the function of this gene? Remember, at a basic level, cancer is uncontrolled cell growth. Does your gene relate to cell growth and proliferation (division)? If so, how?
+
+TP53 is one of the key factors in cancer. The TP53 gene codes for the tumor supressor protein p53. Mutations in TP53 would thus affect how effectively p53 is produced and how p53 functions. Issues with p53 could result in decreased regulation of cell division, leading to characteristic uncontrolled cell growth in cancerous tumors. 
+
+You can also create an oncoplot for specific genes of your choosing by passing a vector into oncoplot genes argument. Pick 5 genes to plot. Hint: the genes argument accepts a vector of strings.
+
+```{r}
+oncoplot(maf = maf_object,
+         genes = c("TP53","PIK3CA","TTN","CDH1","GATA3"))
+```
+
+What other questions might you ask based on the oncoplots created above (think about types of mutations, specific genes, specific pathways, mutual exclusivity of mutations, etc.)? Brainstorm two research questions:
+
+1. Which proteins are affected by the CDH1 nonsense mutations?
+2. Does the loss of these CDH1 proteins affect downstream regulation of cell growth?
+
+###### (3) Adding Clinical Annotations
+
+We can further customize our oncoplots by adding clinical data in the form of an annotation. Let's practice this by adding age_category to our oncoplot.
+
+```{r}
+oncoplot(maf = maf_object,
+         top = 10,
+         clinicalFeatures = "age_category")
+```
+
+Do you see any clustering between old and young patients?
+  No, there is not a clear relationship between the mutations and whether the patient is old or young. The red and blue bars are interspersed between each other without significant sections of just old or just young.
+
+###### (4) subsetMaf + CoOncoplots
+
+Another way to compare between patient populations is to use a coOncoplot. Before we create our coOncoplot, we first need to subset our maf_object dataframe into two separate data frames, one for old patients and one for young patients.
+
+We can do this with subsetMaf(). The subsetMaf(maf, tsb) function needs two arguments in this case: maf is the original MAF object, and tsb is a vector of patient IDs (barcodes) to select.
+
+Store the young patient barcodes in a vector called young_patient_barcodes. Hint: you can use boolean masking for this!
+
+```{r}
+subset_age_mask <- ifelse(maf_object@clinical.data$age_category=="young", TRUE, FALSE)
+
+young_patient_barcodes <- maf_object@clinical.data$Tumor_Sample_Barcode[subset_age_mask]
+```
+
+Use the young_patient_barcode vector in the tsb argument of subsetMaf.
+
+```{r}
+young_maf <- subsetMaf(maf = maf_object,
+                      tsb = young_patient_barcodes)
+```
+
+Create an old_patient_barcode vector and use that to subset just the old patient data.
+
+```{r}
+
+old_patient_barcodes <- maf_object@clinical.data$Tumor_Sample_Barcode[!subset_age_mask]
+  
+old_maf <- subsetMaf(maf = maf_object,
+                      tsb = old_patient_barcodes)
+```
+
+Use coOncoplot() to draw two oncoplots side by side, comparing young vs. old patients. m1 is the first MAF object to plot, and m2 is the second. Be sure to provide descriptive names in the m1Name and m2Name arguments! Again, save the plot using the ggsave() function.
+
+```{r}
+coOncoplot(m1 = young_maf, 
+           m2 = old_maf, 
+           m1Name = "Mutation Types of Top 5 Genes in Young Patients", 
+           m2Name = "Mutation Types of Top 5 Genes in Old Patients")
+
+ggsave("/Users/kathykliu/Desktop/qbio_490_kailin/week6_maf_kailin/first_cooncoplot.png")
+#exported from plot window
+```
+
+Are there any genes that seem to be mutated at different rates between the two populations? If so, pick one. Can you think of any reasons why that gene might be mutated more in younger/older patients (Google it!)
+
+Chosen Gene: GATA3
+More highly mutated in young or old population: young
+Hypothesized Reason:
+GATA3 is mutated twice as much in the young population as the old population. . Younger patients with breast cancer are less easily identifiable, however GATA3 may be more common because:
+  1. GATA3 recently emerged as a clear biomarker for breast cancer and thus is a clearer diagnostic method
+  2. Basal-like cancers (a cancer subtype GATA3 is associated with) is more common in younger women than older women.
+
+###### (6) Co-Lollipop Plots
+
+Similarly to how we created co-Oncoplots to compare the oncoplot data between two different populations, we can also create co-lollipop plots to do the same.
+
+Recreate your young_maf and old_maf objects.
+
+```{r}
+# write code here
+subset_age_mask <- ifelse(maf_object@clinical.data$age_category=="young", TRUE, FALSE)
+
+young_patient_barcodes <- maf_object@clinical.data$Tumor_Sample_Barcode[subset_age_mask]
+
+old_patient_barcodes <- maf_object@clinical.data$Tumor_Sample_Barcode[!subset_age_mask]
+  
+old_maf <- subsetMaf(maf = maf_object,
+                      tsb = old_patient_barcodes)
+```
+
+Now fill in the co-lollipop plot function below. Be sure to add descriptive names for each population.
+
+```{r}
+lollipopPlot2(m1 = young_maf, 
+              m2 = old_maf, 
+              m1_name = "TP53 Mutations in Young Patients",
+              m2_name = "TP53 Mutations in Old Patients",
+              gene = "TP53") ## pick any gene of your choosing to fill in here
+```
+
+Now, interpret your plot. For example, answer the following questions:
+
+Does it look like the gene is more commonly mutated in young or old patients?
+  It is slightly more mutated in young patients. (4% more)
+Are there more mutations in a specific region of the protein? Why might that be?
+  There are more mutations in the middle section of the protein that codes for the p53 protein. This is likely because in cancer, the p53 protein's function is negatively affected. Lack of p53 leads to reduced regulation of cell division.
+What kinds of mutations are the most common?
+  Missense mutation
+Are there any other interesting observations?
+  There are barely any in frame deletion mutations. 
+
+###### (7) Survival Analysis (mafSurvival)
+
+Remember back to Kaplan-Meier survival plots (from the clinical data tutorial). These plots allow us to visualize survival probabilities stratified by different clinical factors (such as age, sex, stage, etc.)
+
+We can also visualize survival probabilities stratified by mutational status. To do this, we use mafSurvival. This is very similar to our traditional KM plots, you may want to open up the clinical data tutorial to follow along there as well.
+
+```{r}
+#maf_object@clinical.data$survival_time <- ifelse(is.na(maf_object@clinical.data$days_to_death), maf_object@clinical.data$days_to_last_followup, maf_object@clinical.data$days_to_death)
+
+maf_object@clinical.data$Overall_Survival_Status <- ifelse(!is.na(maf_object@clinical.data$vital_status),TRUE,FALSE)
+
+mafSurvival(maf = maf_object,
+            genes = "TP53", ## pick a gene of your choosing
+            time = "days_to_last_followup", ## name of the column in maf_object@clinical.data containing survival time, you may need to recreate this... if so, check the clinical data tutorial for instructions
+            Status = "Overall_Survival_Status", ## name of the column that contains a boolean value for death events, you may need to recreate this... if so, check the clinical data tutorial for instructions
+            isTCGA = TRUE)
+```
+
+Provide a brief description of your chosen gene and it's posited relationship to survival.
+  TP53 codes for a protein that regulates cell divsion. Mutations in TP53 that adversely affect the efficacy fo the p53 protein is linked with cancer. While not all cancers are malignant, uncontrolled cell proliferation leads to tumors which negatively affect patient health. 
+
+What can you conclude from your plot?
+  In both the wild type and mutant, age exponentially decreases the patient's survival probability.
+
+Is this what you would expect according to the literature? Why or why not?
+  Yes. Increased age also increases the likelihood of mutations or mistakes in coding for the p53 protein. Defective p53 proteins lead to less regulation of cell division and thus increase chances of cancerous tumors. The develop of tumors has adverse health effects and could decrease a patient's lifespan.
+
+###### (8) Looking Ahead - VERY IMPORTANT!!
+
+Query, download, and prepare the RNA Transcriptomics data in to your R work space. Confirm that your working directory is analysis_data before you run these lines.
+
+Note that this is super slow!! Don't worry, just wait it out.
+
+```{r}
+library(BiocManager)
+library(TCGAbiolinks)
+rna_query <- GDCquery(project = "TCGA-BRCA",
+                      data.category = "Transcriptome Profiling",
+                      data.type = "Gene Expression Quantification",
+                      workflow.type = "STAR - Counts")
+
+GDCdownload(rna_query)
+
+rna_se <- GDCprepare(rna_query)
+```
