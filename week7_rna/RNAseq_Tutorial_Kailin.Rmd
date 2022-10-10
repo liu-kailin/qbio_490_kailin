@@ -1,0 +1,354 @@
+---
+title: "RNAseq Tutorial"
+author: Nicole Black
+date: 07/25/22
+---
+
+###### (1) Set Up
+
+Set your working environment to analysis_data:
+
+```{r setup}
+    knitr::opts_knit$set(root.dir = normalizePath("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data"))
+```
+
+Load in any necessary packages:
+
+```{r}
+# load in packages
+library(SummarizedExperiment)
+library(TCGAbiolinks)
+rna_query <- GDCquery(project = "TCGA-BRCA",
+                      data.category = "Transcriptome Profiling",
+                      data.type = "Gene Expression Quantification",
+                      workflow.type = "STAR - Counts")
+
+if (!require(rna_query)){ # you only need to install a package once, this checks to see if it has already been installed
+GDCdownload(rna_query)
+}
+
+rna_se <- GDCprepare(rna_query)
+
+
+```
+
+Read in your data files using read.csv(). If row.names was equal to TRUE when you were writing the files, header will also be equal to TRUE (and vise versa).
+
+```{r}
+rna_clinical <- read.csv("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data/brca_rna_clincial_data.csv")
+rna_counts <- read.csv("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data/brca_rna_count_data.csv")
+rna_genes <- read.csv("/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data/brca_rna_gene_data.csv")
+```
+
+###### (2) Cleaning up your data frames
+
+Call rownames() and colnames() on rna_clinical.
+
+```{r}
+# write code here
+rownames(rna_clinical)
+colnames(rna_clinical)
+```
+
+As you can see, the column names are informative, but the columns names are not. Let's fix this. Use the row.names() function to name the rows according to the barcode column.
+
+```{r}
+?row.names
+.rowNamesDF(rna_clinical, make.names=FALSE) <-rna_clinical$barcode
+rownames(rna_clinical)
+# add row names here
+```
+
+Just like we did to "clinical", we are going to create a column in rna_clinical for age_category. Our cutoff will be the same ("young" as < 50 y/o, and "old" as >= 50 y/o).
+
+There are three age columns in rna_clinical. Which one should we use? Explore the rna_clinical data frame and find the three age related columns. Call summary() on all of them and based on the results, determine which column to use.
+
+```{r}
+# write code here
+colnames(rna_clinical)
+# age_at_diagnosis, age_at_index, days_to_birth
+summary(rna_clinical$age_at_diagnosis)
+summary(rna_clinical$age_at_index) 
+summary(rna_clinical$days_to_birth)
+# use age at index, age values in years
+# Hint: if you're really stuck finding the columns/determining which to use, go to the bottom of the "Cleaning up your data frames" section for the answers. Only do this once you've given it a good shot on your own!
+```
+
+Now that you have your existing data column. Use this with an ifelse() statement to create a new column in rna_clinical called age_category. Remember ifelse(expression, x, y), where x happens if the expression is true, and y happens if it is false.
+
+```{r}
+# write code here
+rna_clinical$age_category <- ifelse(rna_clinical$age_at_index < 50, "young", "old")
+head(rna_clinical$age_category)
+```
+
+----
+
+Let's move on to rna_genes. Call rownames() and colnames() on rna_genes.
+
+```{r}
+# write code here
+rownames(rna_genes)
+colnames(rna_genes)
+```
+
+Once again, the column names are informative, but the columns names are not. Use row.names() to name the rows according to gene_id. Note: it would be nice to use gene_name instead of gene_id for the row names, but there are duplicate values in the gene_name column, and row names must be unique.
+
+```{r}
+# write code here
+.rowNamesDF(rna_genes, make.names=FALSE) <-rna_genes$gene_id
+rownames(rna_genes)
+
+```
+
+----
+
+Now that rna_genes has informative row/column names, let's move on to rna_counts. Call rownames() and colnames() on rna_counts.
+
+```{r}
+# write code here
+rownames(rna_counts)
+colnames(rna_counts)
+```
+
+Uh oh! Looks like neither the row nor column names are very informative. Given what we did to the other data frames, add column and row names to rna_counts. Name the columns based on the patient barcodes (ie the column names for rna_clinical), and name the rows based on the gene id's (ie the column names for rna_gene).
+
+```{r}
+# write code here
+.rowNamesDF(rna_counts, make.names=FALSE) <-rna_genes$gene_id
+colnames(rna_counts) <- rna_clinical$barcode
+```
+
+----
+
+The last step in cleanup is to subset out any samples that are of a normal tissue type. Call unique() on the definition column of rna_clinical.
+
+```{r}
+# write code here
+unique(rna_clinical$definition)
+```
+
+Notice that there are three sample types: "Solid Tissue Normal", "Primary solid Tumor", and "Metastatic". For now, we are simply going to get rid of the "Solid Tissue Normal" samples, but keep this in mind for your midterm and final projects as these samples could provide you with a good control!
+
+Create a mask that calls "Solid Tissue Normal" FALSE, and the other two sample types TRUE.
+
+```{r}
+# write code here
+solid_mask <- ifelse(rna_clinical$definition=="Solid Tissue Normal", FALSE, TRUE)
+```
+
+You will need to apply this mask to two of our three data frames (rna_clinical, rna_genes, rna_counts). Think about which df's involve samples, and apply the mask to these data frames to subset out the normal samples. You may overwrite the data frames in this case.
+
+```{r}
+# write code here
+rna_clinical <- rna_clinical[solid_mask,]
+rna_counts <- rna_counts[,solid_mask]
+
+```
+
+Great! Now all of our data frames are ready for exploration and analysis.
+
+-- Hints --
+
+Age columns:
+  rna_clinical$age_at_diagnosis (16 NAs) (in days, not years)
+  rna_clinical$age_at_index (0 NAs) <-- use this!
+  rna_clinical$paper_age_at_initial_pathologic_diagnosis (132 NAs)
+
+###### (3) Preparing for plotting
+
+Make a column in rna_clinical called five_yr_surv that contains TRUEs and FALSEs for whether a patient survived 5 years. Use days_to_death, or (if days_to_death is NULL), days_to_last_follow_up. Note: 1 year = 365.25 days.
+
+```{r}
+# fill in the nested ifelse to capture TRUE/FALSE values for whether a patient survived 5 years according to their days_to_death (NOTE: the first ifelse condition changes the NAs from next to true NA values so we can use is.na() later on)
+
+five_yr_death <- ifelse(rna_clinical$days_to_death == "NA", NA, ifelse(rna_clinical$days_to_death >= 365*5,TRUE, FALSE ))
+
+# use boolean data from days_to_last_followup when five_yr_death is NA
+
+five_yr_death_and_followup <- ifelse(is.na(five_yr_death), ifelse(rna_clinical$days_to_last_follow_up >= 365*5,TRUE, FALSE ), five_yr_death)
+
+# create your column from your finalized boolean vector (there should be only T/F, no NAs) 
+rna_clinical$five_year_surv <- five_yr_death_and_followup
+```
+
+----
+
+Recall the %in% function that allows us to check whether a value is present in a vector. Ex:
+
+```{r}
+fruit_list <- c("peach", "pomegranate", "cherry", "apricot", "kiwi")
+"apple" %in% fruit_list # output: FALSE
+"kiwi" %in% fruit_list # output: TRUE
+```
+
+Using your knowledge from the literature presentations, Google, etc., pick two genes that are important in breast cancer. List them below.
+    ~ Gene 1: TP53
+    ~ Gene 2: PIK3CA
+    
+Using the %in% function, check that these two genes are in the rna_genes data. If they aren't pick a new gene. Hint: think about which column to check in.
+
+```{r}
+# write code here
+"TP53" %in% rna_genes$gene_name
+"PIK3CA" %in% rna_genes$gene_name
+```
+
+Create a mask for geneA and geneB where that gene is TRUE and all others are FALSE.
+
+NOTE: for the rest of this notebook, whenever you see "geneA" or "geneB", change that to the name of your gene(s) for easier reference later on.
+
+```{r}
+# write code here
+
+TP53_mask <- ifelse(rna_genes$gene_name=="TP53", T, F) # create mask based on the gene name (your mask should be true when the name is 'geneA' and false for any other gene name)
+
+PIK3CA_mask <- ifelse(rna_genes$gene_name=="PIK3CA", T, F)
+```
+
+We can use this mask for a few things. First, let's use it to grab the ensembl IDs of our genes.
+
+```{r}
+TP53_ensembl <- rna_genes$gene_id[TP53_mask] # think about which column we should apply out mask to
+  
+PIK3CA_ensembl <- rna_genes$gene_id[PIK3CA_mask]
+```
+
+We can also use the mask to create a list that contains counts for just a single gene. (HINT: this means subsetting for just the geneA row, with all columns included)
+
+```{r}
+TP53_counts <- rna_counts[TP53_mask,]
+
+PIK3CA_counts <- rna_counts[PIK3CA_mask,]
+```
+
+Call summary() on geneA_counts and geneB_counts. Record the output below:
+
+  Gene A
+    ~ Min.: 274
+    ~ 1st Qu.: 2860
+    ~ Median: 4443
+    ~ Mean: 4914
+    ~ 3rd Qu.: 6354
+    ~ Max.: 25897
+    
+  Gene B
+  ~ Min.: 278
+  ~ 1st Qu.: 1420
+  ~ Median: 2169
+  ~ Mean: 2558
+  ~ 3rd Qu.: 3140
+  ~ Max.: 97814
+
+```{r}
+# write code here
+summary(as.numeric(TP53_counts))
+summary(as.numeric(PIK3CA_counts))
+```
+
+###### (4) Plotting
+
+Recall that plot() creates a scatterplot. Use this function to plot geneA vs geneB.
+
+```{r}
+#large_mask <- ifelse(PIK3CA_counts>20000, FALSE, TRUE)
+#pik3CA_counts <- PIK3CA_counts[,large_mask]
+#tp53_pik3ca_mask <- ifelse()
+
+#par(mar=c(1,1,1,1)) # this changes your margins so the plot will appear in the window correctly
+plot(as.numeric(TP53_counts),
+     as.numeric(PIK3CA_counts),
+     xlab = "TP53 counts",
+     ylab = "PIK3CA counts",
+     main = "TP53 Counts vs PIK3CA Counts"
+)
+```
+
+Do you notice any patterns? Is there a relationship between the two genes that you chose? Write a few sentence making observations about your plot, noting the significance of what this means, and any key takeaways:
+
+  An increased number of TP53 counts does not correlate with an increased number of PIK3CA. Thus, the cancer in these samples may be caused more by the TP53 count instead of the PIK3CA count. 
+
+----
+
+Let's visualize these two genes again, this time using box plots. To get both geneA_counts and geneB_counts on one plot, make a data frame using data.frame() that contains those lists as columns.
+
+```{r}
+geneAB_counts <- data.frame(as.numeric(TP53_counts),as.numeric(PIK3CA_counts)) # create data frame with geneA_counts and geneB_counts
+
+#par(mar=c(1,1,1,1))
+boxplot(geneAB_counts,
+        xlab = "Gene Type",
+        ylab = "Reads")
+summary(geneAB_counts)
+```
+
+Write a few sentence making observations about your plot, noting the significance of what this means, and any key takeaways:
+`
+  The median PIK3CA count is lower than the median TP53 count. This could signify that TP53 is expressed more in BRCA patients than PIK3CA and that TP53 could be a better indicator than PIK3CA. Furthermore, a higher median could indicate that there is a higher threshold of TP53 expression to cause breast cancer than PIK3CA. 
+----
+
+For the next plots, choose either gene A or gene B to continue with. We will be making a box plot with two boxes, one for patients who survived 5 years, and another for patients who did not.
+
+```{r}
+#par(mar=c(1,1,1,1))
+boxplot(as.numeric(TP53_counts) ~ rna_clinical$five_year_surv, # think about what data (gene counts or the 5 yr survival column) should be on the x vs y axes
+        xlab = "5 Year Survival",
+        ylab = "TP53 Counts")
+#dev.off()
+```
+
+Does there appear to be a relationship between expression of your gene and five year survival? Is this what we would expect (do some research on the gene+survival to validate). Write a few sentence making observations about your plot, noting the significance of what this means, and any key takeaways:
+
+  The "FALSE" boxplot (patient who did not survive past 5 years) shows that there is a large number of patients who have high expression of TP53 (greater than the boxplot). This suggests that those who did not survive past 5 years had greater expression of TP53. While the "TRUE" boxplot also shows some patients who have high expression of TP53, they are likely outliers as the dots are not as concentrated. 
+
+----
+
+Create two more gene_count lists, for MKI67 and PTGS2.
+
+```{r}
+
+MKI67_mask <- ifelse(rna_genes$gene_name=="MKI67", T, F) 
+MKI67_ensembl <- rna_genes$gene_id[MKI67_mask]
+MKI67_counts <- rna_counts[MKI67_mask,]
+
+
+PTGS2_mask <- ifelse(rna_genes$gene_name=="PTGS2", T, F)
+PTGS2_ensembl <- rna_genes$gene_id[PTGS2_mask]
+PTGS2_counts <- rna_counts[PTGS2_mask,]
+```
+
+Create a Draftsman plot by filling in the code below.
+
+```{r}
+# fill in with your 4 individual gene count lists and their names
+geneABCD_counts <- data.frame(as.numeric(TP53_counts),as.numeric(PIK3CA_counts),as.numeric(MKI67_counts),as.numeric(PTGS2_counts))
+colnames(geneABCD_counts) <- c("TP53_counts","PIK3CA_counts","MKI67_counts","PTGS2_counts")
+
+# the following three lines set up a clustering color scheme for our plot
+# choose a column from rna_clinical to cluster based on (ex: age_category, five_yr_surv, AJCC staging, etc.)
+cols <- character(nrow(rna_clinical)) 
+cols[rna_clinical$five_year_surv == TRUE] <- "blue" # fill in column and value for as many unique values are in your column (ex: 2 for age_category, "young"/"old")
+cols[rna_clinical$five_year_surv == FALSE] <- "red"
+
+# run this line to create your plot!
+par(mar=c(1,1,1,1))
+pairs(geneABCD_counts, col = cols, lower.panel=NULL)
+```
+
+Do there appear to be any relationships between the genes in question? Do you see any clear clustering based on your chosen clinical variables? Write a few sentence making observations about your plot, noting the significance of what this means, and any key takeaways:
+
+  TP53: Higher TP53 counts are not correlated with higher PIK3CA counts. TP53 counts in relation to MKI67 counts are more dispersed with potentially a linear relationship as there are a few points where increased TP53 also correlates with increased MKI67. Higher TP53 counts are also not correlated with higher PTGS2 counts.
+  PIK3CA: For both MKI67 and PTGS2, the PIK3CA counts are consistently low with one outlier. The one outlier occurs when MK167 and PTGS2 counts are still low. 
+  MK167: Higher MKI67 counts do not correlate with higher PTGS2 counts. 
+
+###### (5) Saving your edited files
+
+Write your df files to your local computer (you may overwrite the existing files). Use write.csv().
+
+```{r}
+# save files here
+write.csv(rna_clinical, "/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data/brca_rna_clinical_data.csv")
+write.csv(rna_counts, "/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data/brca_crna_ount_data.csv")
+write.csv(rna_genes, "/Users/kathykliu/Desktop/qbio_490_kailin/analysis_data/brca_rna_gene_data.csv")
+```
+
